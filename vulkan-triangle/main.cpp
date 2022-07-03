@@ -140,6 +140,7 @@ private:
         createLogicalDevice();
         createSwapChain();
         createImageViews();
+        createGraphicsPipeline();
     }
     
     void createSurface() {
@@ -411,6 +412,10 @@ private:
                 throw std::runtime_error("failed to create image views");
             }
         }
+    }
+
+    void createGraphicsPipeline() {
+        // LETS GET IT BOI
     }
 
     void mainLoop() {
