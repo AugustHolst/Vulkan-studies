@@ -11,6 +11,8 @@
 #include <limits>
 #include <algorithm>
 
+#include "shaderHelper.h"
+
 const uint32_t WIN_WIDTH = 640;
 const uint32_t WIN_HEIGHT = 480;
 
@@ -415,7 +417,9 @@ private:
     }
 
     void createGraphicsPipeline() {
-        // LETS GET IT BOI
+        
+        auto vertShaderCode = ShaderHelper::readFile("shaders/vert.spv");
+        auto fragShaderCode = ShaderHelper::readFile("shaders/frag.spv");
     }
 
     void mainLoop() {
