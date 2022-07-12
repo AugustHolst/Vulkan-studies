@@ -97,6 +97,8 @@ private:
     VkPipeline graphicsPipeline;
     
     std::vector<VkFramebuffer> swapchainFramebuffers;
+    VkCommandPool commandPool;
+    VkCommandBuffer commandBuffer;
 
     void createInstance() {
         if (enableValidationLayers && !checkValidationLayerSupport()) {
@@ -150,6 +152,8 @@ private:
         createRenderPass();
         createGraphicsPipeline();
         createFramebuffers();
+        createCommandPool();
+        createCommandBuffer();
     }
     
     void createSurface() {
@@ -629,13 +633,87 @@ private:
         }
     }
 
-    void mainLoop() {
-        while (!glfwWindowShouldClose(window)) {
-            glfwPollEvents();
+    void createCommandPool() {
+        QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
+
+        VkCommandPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; // allows command buffers to be edited individually, otherwise all have to be reset.
+        poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
+
+        if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create command pool!");
         }
     }
 
+    void createCommandBuffer() {
+        VkCommandBufferAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.commandPool = commandPool;
+        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY; // PRIMARY: Can be submitted to queue. cannot be called from other command buffers.  
+        allocInfo.commandBufferCount = 1;
+
+        if (vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate command buffers!");
+        }
+    }
+
+    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        
+        if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
+            throw std::runtime_error("failed to start recording command buffer!");
+        }
+
+        VkRenderPassBeginInfo renderPassInfo{};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderPassInfo.renderPass = renderPass;
+        renderPassInfo.framebuffer = swapchainFramebuffers[imageIndex];
+        // VkRect2D "sub-struct"
+        renderPassInfo.renderArea.offset = {0, 0};
+        renderPassInfo.renderArea.extent = swapchainExtent;
+        // this const can be spared, by setting VkClearValue with another set of curly brackets.
+        const VkClearColorValue clearColorVal = {{0.0f, 0.0f, 0.0f, 1.0f}};
+        VkClearValue clearColor = {clearColorVal};
+        renderPassInfo.clearValueCount = 1;
+        renderPassInfo.pClearValues = &clearColor;
+        
+        // 3rd argument: VK_SUBPASS_CONTENTS_INLINE is for primary buffers | VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS
+        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+        
+        VkViewport viewport{};
+        viewport.x = 0.0f; viewport.y = 0.0f;
+        viewport.width = (float) swapchainExtent.width; viewport.height = (float) swapchainExtent.height;
+        viewport.minDepth = 0.0f; viewport.maxDepth = 1.0f;
+        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+        VkRect2D scissor{};
+        scissor.offset = {0, 0};
+        scissor.extent = swapchainExtent;
+        vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+        // 2nd: vertexCount. 3rd: instanceCount. 4th: firstVertex. 5th: firstInstance
+        vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+        
+        vkCmdEndRenderPass(commandBuffer);
+        if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+            throw std::runtime_error("failed recording to command buffer!");
+        }
+    }
+
+    void mainLoop() {
+        while (!glfwWindowShouldClose(window)) {
+            glfwPollEvents();
+            drawFrame();
+        }
+    }
+
+    void drawFrame() {
+        std::cout << "LETS GET IT" << std::endl;
+    }
+
     void cleanup() {
+        vkDestroyCommandPool(device, commandPool, nullptr);
         for (auto framebuffer : swapchainFramebuffers) {
             vkDestroyFramebuffer(device, framebuffer, nullptr);
         } 
