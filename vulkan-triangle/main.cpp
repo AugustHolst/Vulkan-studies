@@ -1,4 +1,3 @@
-#include <string>
 #include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -12,6 +11,7 @@
 #include <set>
 #include <limits>
 #include <algorithm>
+#include <string>
 
 #include "shaderHelper.h"
 
@@ -365,6 +365,9 @@ private:
         vkGetSwapchainImagesKHR(device, swapchain, &imageCount, nullptr);
         swapchainImages.resize(imageCount);
         vkGetSwapchainImagesKHR(device, swapchain, &imageCount, swapchainImages.data());
+    
+        swapchainImageFormat = surfaceFormat.format;
+        swapchainExtent = extent;
     }
 
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
@@ -581,6 +584,8 @@ private:
         // --PIPELINE LAYOUT--
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipelineLayoutInfo.setLayoutCount = 0;
+        pipelineLayoutInfo.pushConstantRangeCount = 0;
         // this struct is where shader uniforms/attachments a handled.
         
         if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
@@ -621,7 +626,7 @@ private:
         createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data()); // cast needed to interpret shader bytecode.
         
         VkShaderModule shaderModule;
-        if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) == VK_SUCCESS) {
+        if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
             throw std::runtime_error("failed to create shader module!");
         }
         
