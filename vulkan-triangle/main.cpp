@@ -1,4 +1,3 @@
-#include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -493,10 +492,10 @@ private:
         vertShaderStageInfo.pName = "main";
         
         VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
-        vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        vertShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-        vertShaderStageInfo.module = fragShaderModule;
-        vertShaderStageInfo.pName = "main";
+        fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        fragShaderStageInfo.module = fragShaderModule;
+        fragShaderStageInfo.pName = "main";
 
         VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
@@ -549,7 +548,10 @@ private:
         rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
         rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
         rasterizer.depthBiasEnable = VK_FALSE;
-
+        rasterizer.depthBiasConstantFactor = 0.0f; // Optional
+        rasterizer.depthBiasClamp = 0.0f; // Optional
+        rasterizer.depthBiasSlopeFactor = 0.0f; // Optional
+        
         // --MULTISAMPLING--    *disabled for now.
         VkPipelineMultisampleStateCreateInfo multisampling{};
         multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
@@ -620,7 +622,6 @@ private:
 
     VkShaderModule createShaderModule(const std::vector<char>& code) {
         VkShaderModuleCreateInfo createInfo{};
-        std::cout << "\n\n" << code.size() << std::endl;
         createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
         createInfo.codeSize = code.size();
         createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data()); // cast needed to interpret shader bytecode.
@@ -686,34 +687,34 @@ private:
             throw std::runtime_error("failed to start recording command buffer!");
         }
 
-        VkRenderPassBeginInfo renderPassInfo{};
-        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        renderPassInfo.renderPass = renderPass;
-        renderPassInfo.framebuffer = swapchainFramebuffers[imageIndex];
-        // VkRect2D "sub-struct"
-        renderPassInfo.renderArea.offset = {0, 0};
-        renderPassInfo.renderArea.extent = swapchainExtent;
-        // this const can be spared, by setting VkClearValue with another set of curly brackets.
-        VkClearColorValue clearColorVal = {{0.0f, 0.0f, 0.0f, 1.0f}};
-        VkClearValue clearColor = {clearColorVal};
-        renderPassInfo.clearValueCount = 1;
-        renderPassInfo.pClearValues = &clearColor;
-        
-        // 3rd argument: VK_SUBPASS_CONTENTS_INLINE is for primary buffers | VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS
-        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-        
-        VkViewport viewport{};
-        viewport.x = 0.0f; viewport.y = 0.0f;
-        viewport.width = (float) swapchainExtent.width; viewport.height = (float) swapchainExtent.height;
-        viewport.minDepth = 0.0f; viewport.maxDepth = 1.0f;
-        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-        VkRect2D scissor{};
-        scissor.offset = {0, 0};
-        scissor.extent = swapchainExtent;
-        vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-        // 2nd: vertexCount. 3rd: instanceCount. 4th: firstVertex. 5th: firstInstance
-        vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+            VkRenderPassBeginInfo renderPassInfo{};
+            renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            renderPassInfo.renderPass = renderPass;
+            renderPassInfo.framebuffer = swapchainFramebuffers[imageIndex];
+            // VkRect2D "sub-struct"
+            renderPassInfo.renderArea.offset = {0, 0};
+            renderPassInfo.renderArea.extent = swapchainExtent;
+            // this const can be spared, by setting VkClearValue with another set of curly brackets.
+            VkClearColorValue clearColorVal = {{0.0f, 0.0f, 0.0f, 1.0f}};
+            VkClearValue clearColor = {clearColorVal};
+            renderPassInfo.clearValueCount = 1;
+            renderPassInfo.pClearValues = &clearColor;
+            
+            // 3rd argument: VK_SUBPASS_CONTENTS_INLINE is for primary buffers | VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS
+            vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+            
+            VkViewport viewport{};
+            viewport.x = 0.0f; viewport.y = 0.0f;
+            viewport.width = (float) swapchainExtent.width; viewport.height = (float) swapchainExtent.height;
+            viewport.minDepth = 0.0f; viewport.maxDepth = 1.0f;
+            vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+            VkRect2D scissor{};
+            scissor.offset = {0, 0};
+            scissor.extent = swapchainExtent;
+            vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+            // 2nd: vertexCount. 3rd: instanceCount. 4th: firstVertex. 5th: firstInstance
+            vkCmdDraw(commandBuffer, 3, 1, 0, 0);
         
         vkCmdEndRenderPass(commandBuffer);
         if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
@@ -722,13 +723,13 @@ private:
     }
 
     void createSyncObjects() {
-        VkSemaphoreCreateInfo semaphoreInfo{ .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
-        VkFenceCreateInfo fenceInfo{ 
-            .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, 
-            .flags = VK_FENCE_CREATE_SIGNALED_BIT // inFlightFence is only signaled after a frame has finished rendering. This tells to initiate.
-        };
+        VkSemaphoreCreateInfo semaphoreInfo{};
+        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        VkFenceCreateInfo fenceInfo{};
+        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT; // inFlightFence is only signaled after a frame has finished rendering. This tells to initiate.
         if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphore) != VK_SUCCESS ||
-            vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphore) != VK_SUCCESS || 
+            vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS || 
             vkCreateFence(device, &fenceInfo, nullptr, &inFlightFence) != VK_SUCCESS) {
                 throw std::runtime_error("failed to craete semaphores!");
         }
@@ -769,7 +770,10 @@ private:
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
         
-        
+        if (vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFence) != VK_SUCCESS) {
+            throw std::runtime_error("failed to submit draw command buffer!");
+        }
+
         VkPresentInfoKHR presentInfo{};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
         presentInfo.waitSemaphoreCount = 1;
@@ -781,7 +785,6 @@ private:
         presentInfo.pImageIndices = &imageIndex;
 
         vkQueuePresentKHR(presentQueue, &presentInfo);
-
     }
 
     void cleanup() {
