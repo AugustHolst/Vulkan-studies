@@ -1,5 +1,3 @@
-#include <cstddef>
-#include <cstdint>
 #include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -109,6 +107,7 @@ private:
     std::vector<VkSemaphore> renderFinishedSemaphores;
     std::vector<VkFence> inFlightFences;
     uint32_t currentFrame = 0;
+    bool framebufferResized = false;
 
     void createInstance() {
         if (enableValidationLayers && !checkValidationLayerSupport()) {
@@ -149,6 +148,8 @@ private:
         glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
         window = glfwCreateWindow(WIN_WIDTH, WIN_HEIGHT, "Vulkan", nullptr, nullptr);
+        glfwSetWindowUserPointer(window, this);
+        glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
     }
 
     void initVulkan() {
@@ -761,10 +762,18 @@ private:
     void drawFrame() {
         // 2rd: fenceCount. 3rd: pFences. 4th: waitAll. 5th. timeout.
         vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
-        vkResetFences(device, 1, &inFlightFences[currentFrame]);
         
         uint32_t imageIndex;
-        vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+        VkResult imageAcquireResult = vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+        if (imageAcquireResult == VK_ERROR_OUT_OF_DATE_KHR) {
+            recreateSwapchain();
+        } else if (imageAcquireResult != VK_SUCCESS && imageAcquireResult != VK_SUBOPTIMAL_KHR) {
+            throw std::runtime_error{"failed to acquire swapchain image"};
+        }
+        
+        // only reset the fence if work is getting submitted.
+        vkResetFences(device, 1, &inFlightFences[currentFrame]);
+        
         vkResetCommandBuffer(commandBuffers[currentFrame], 0);
         recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
         
@@ -798,7 +807,12 @@ private:
         presentInfo.pSwapchains = swapChains;
         presentInfo.pImageIndices = &imageIndex;
 
-        vkQueuePresentKHR(presentQueue, &presentInfo);
+        VkResult imagePresentResult = vkQueuePresentKHR(presentQueue, &presentInfo);
+        if (imagePresentResult == VK_ERROR_OUT_OF_DATE_KHR || imagePresentResult == VK_SUBOPTIMAL_KHR || framebufferResized) {
+            recreateSwapchain();
+        } else if (imagePresentResult != VK_SUCCESS) {
+            throw std::runtime_error("failed to present swapchain image!");
+        }
 
         currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
     }
@@ -814,6 +828,13 @@ private:
     }
 
     void recreateSwapchain() {
+        int width = 0, height = 0;
+        glfwGetFramebufferSize(window, &width, &height);
+        while (width == 0 || height == 0) {
+            glfwGetFramebufferSize(window, &width, &height);
+            glfwWaitEvents();
+        }
+
         vkDeviceWaitIdle(device);
 
         cleaupSwapchain();
@@ -850,7 +871,12 @@ private:
         glfwDestroyWindow(window);
         glfwTerminate();
     }
-
+    
+    static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
+        auto app = reinterpret_cast<HelloTriangleApplication*>(glfwGetWindowUserPointer(window));
+        app->framebufferResized = true;
+    }
+ 
     void setupDebugMessenger() {
         if (!enableValidationLayers)    return;
         
